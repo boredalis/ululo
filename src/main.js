@@ -4,7 +4,10 @@ import router from './router'
 import axios from 'axios'
 import VueAxios from 'vue-axios'
 import VuePlyr from 'vue-plyr'
- 
+import { firestorePlugin } from 'vuefire'
+import './firebaseConfig.js'
+
+Vue.use(firestorePlugin)
 Vue.use(VueAxios, axios)
 Vue.config.productionTip = false
 Vue.use(VuePlyr, {
@@ -16,6 +19,6 @@ Vue.use(VuePlyr, {
 })
 
 new Vue({
-  router,
-  render: h => h(App),
+    router,
+    render: h => h(App),
 }).$mount('#app')
