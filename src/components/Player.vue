@@ -7,18 +7,18 @@
         <vue-plyr v-show="false" ref="plyr" :key="currentSong.videoId">
             <div>
                 <iframe :src="
-						'https://www.youtube.com/embed/' +
-							currentSong.videoId +
-							'?iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1'
-					" allowfullscreen allowtransparency allow="autoplay">
+                        'https://www.youtube.com/embed/' +
+                            currentSong.videoId +
+                            '?iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1'
+                    " allowfullscreen allowtransparency allow="autoplay">
                 </iframe>
             </div>
         </vue-plyr>
         <div class="progress"></div>
         <div class="play-buttons">
             <HeartIcon />
-            <PauseIcon class="play" @click="pauseVideo()" v-if="!isPaused" />
-            <PlayIcon class="play" @click="playVideo()" v-else />
+            <PauseIcon ref="pause" class="play" @click="pauseVideo()" v-if="!isPaused" />
+            <PlayIcon ref="play" class="play" @click="playVideo()" v-else />
             <VolumeXIcon class="volume" @click="enableVolume()" v-if="muteAudio" />
             <Volume1Icon class="volume" @click="disableVolume()" v-else />
         </div>
@@ -30,8 +30,10 @@ import {
     PauseIcon,
     Volume1Icon,
     VolumeXIcon,
-    HeartIcon
+    HeartIcon,
 } from "vue-feather-icons";
+let emitTimeInterval;
+let checkTimeInterval;
 
 export default {
     props: {
@@ -48,29 +50,42 @@ export default {
         PauseIcon,
         Volume1Icon,
         VolumeXIcon,
-        HeartIcon
+        HeartIcon,
+    },
+    created() {
+        this.plrInitialized = false;
     },
     mounted() {
-    	const pollingInterval = 10000;
+        clearInterval(emitTimeInterval);
+        clearInterval(checkTimeInterval);
+        const pollingInterval = 10000;
+
+        const checkLocalTime = s => {
+            const remoteTime = this.remoteCurrentTime
+            const localTime = this.plyrRef.currentTime
+            const difference = remoteTime - localTime
+            console.log({ difference })
+            this.playVideo()
+            if (difference < 0 || difference >=8) this.syncLocalTime()
+        }
+        const emitLocalTime = () => {
+            this.localCurrentTime = Math.round(this.plyrRef.currentTime)
+            this.$emit("currentTime", this.localCurrentTime);
+        }
+
         this.$nextTick().then(res => {
-            if (this.plrInitialized) return;
+            if (this.plrInitialized) return
             return this.initializePlyr()
         }).then(res => {
-        	if(this.isGuest) return Promise.resolve()
-        	setInterval(() => {
-        		// emit current time when playlist owner
-                this.localCurrentTime = Math.round(this.plyrRef.currentTime)
-                this.$emit("currentTime", this.localCurrentTime);
-            }, pollingInterval);
-            return Promise.resolve()
-        }).then(res => {
-        	if(!this.isGuest) return
-        	setInterval(s => {
-        		const remoteTime = this.remoteCurrentTime
-        		const localTime = this.plyrRef.currentTime
-        		const difference = remoteTime - localTime
-        		if(difference < 0 || difference > 20) this.syncLocalTime()
-        	}, pollingInterval)
+            if (this.isGuest) return Promise.resolve()
+            const hostNeedsSync = !!this.remoteCurrentTime && !this.plyrRef.currentTime;
+            console.log('Needs sync', hostNeedsSync)
+            if (hostNeedsSync) checkLocalTime()
+            emitTimeInterval = setInterval(emitLocalTime, pollingInterval);
+        }).then(() => {
+            if (!this.isGuest) return
+            checkLocalTime()
+            checkTimeInterval = setInterval(checkLocalTime, pollingInterval)
         })
     },
     data: () => ({
@@ -78,11 +93,19 @@ export default {
         isPaused: false,
         plrInitialized: false,
         localDuration: null,
-        localCurrentTime: null
+        localCurrentTime: null,
     }),
+    watch: {
+        videoId() {
+            //this.plyrRef = this.$refs.plyr.player;
+        }
+    },
     computed: {
+        videoId() {
+            return this.currentSong.videoId
+        },
         remoteCurrentTime() {
-        	return this.currentSong.currentTime
+            return this.currentSong.currentTime
         },
         background() {
             if (!this.currentSong) return;
@@ -96,6 +119,7 @@ export default {
     },
     methods: {
         playVideo() {
+            console.log('Play video')
             this.isPaused = false;
             this.plyrRef.play();
         },
@@ -112,23 +136,22 @@ export default {
             this.plyrRef.volume = 0;
         },
         syncLocalTime() {
-        	this.plyrRef.currentTime = this.remoteCurrentTime
+            this.plyrRef.currentTime = this.remoteCurrentTime
         },
         initializePlyr() {
             return new Promise((resolve, reject) => {
-            	let player = this.$refs.plyr.player;
+                let player = this.$refs.plyr.player;
+                let song = this.currentSong
+                player.on("ready", event => {
+                    this.plrInitialized = true;
+                    this.isPaused = false;
+                    this.localDuration = this.plyrRef.duration;
+                    resolve()
+                });
 
-	            player.on("ready", event => {
-	                this.plrInitialized = true;
-	                this.isPaused = false;
-	                this.localDuration = this.plyrRef.duration;
-	                console.log("REDII!")
-	                resolve()
-	            });
-
-	            player.on("ended", event => {
-	                this.$emit("ended");
-	            });
+                player.on("ended", event => {
+                    this.$emit("ended", song);
+                });
             })
         }
     }

@@ -1,16 +1,17 @@
 <template>
     <div>
-        <img src="https://www.dreamworks.com/images/temp/explore/dragons/toothless/profile.png" alt="" height="50px" width="50px" class="img">
+        <div>
+            <img src="@/assets/mello.svg" width="50px" class="img">
+        </div>
     </div>
 </template>
 <script>
 export default {
     name: 'collaborators',
-    props:['collaborator']
+    props: ['collaborator'],
 }
 </script>
 <style>
-
 .img {
     border-radius: 100%;
 }

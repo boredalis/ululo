@@ -1,9 +1,12 @@
 <template>
     <div class="partywithus">
+        <div class="admin-buttons" style="position: fixed; top: 10px; right: 10px; background-color: green; color: white; padding: 10px; z-index: 20;" v-if="showAdminButtons">
+            <button @click="playNext(currentSong)">next</button>
+        </div>
         <div class="ana-e-majt">
             <div class="upnext">
                 <div>
-                    <p>COLLABORATORS</p>
+                    <p @dblclick="showAdminButtons = true">COLLABORATORS</p>
                     <div class="collabs">
                         <Collaborators v-for="collaborator in collaborators" :collaborator="collaborator">
                         </Collaborators>
@@ -13,40 +16,39 @@
                     <h1>Up next</h1>
                     <p class="popup" v-if="shouldYield">One collaborator per time!</p>
                     <ul class="songs-list" :style="
-						`max-height:${maxListHeightStyle}; overflow-y: auto;`
-					" ref="songsListRef">
-                        <SongListItem v-for="song in upcomingSongsData" :songProperties="song" />
-                        <span v-if="!upcomingSongsData.length">Looks empty in here...</span>
+                        `max-height:${maxListHeightStyle}; overflow-y: auto;`
+                    " ref="songsListRef">
+                        <SongListItem @voted="updateVotes" v-for="song in upcomingSongsData" :songProperties="song"  :key="song.id"/>
+                        <span v-if="!upcomingSongsData.length">Looks empty in here... </span>
+                        <span style="text-decoration: underline;cursor: pointer" v-if="!upcomingSongsData.length && finishedSongs.length" @click="historyToPlayNext()">Add already played songs?</span>
                     </ul>
                 </div>
             </div>
-            <div class="add-new-song" ref="newSongRef">
-                <p>
-                    Its your time to shine, add the next song  to our playlist:
-                </p>
-                <div class="paste-link-input">
-                    <input type="text" v-model="youtubeLink" placeholder="https://youtube.com/urh34/" />
-                    <button :disabled="!appIsReady" @click="addSong()">Add</button>
+            <div class=" add-new-song" ref="newSongRef">
+                            <p>
+                                Its your time to shine, add the next song  to our playlist:
+                            </p>
+                            <div class="paste-link-input">
+                                <input type="text" v-model="youtubeLink" placeholder="https://youtube.com/urh34/" />
+                                <button :disabled="!appIsReady" @click="addSong()">Add</button>
+                            </div>
                 </div>
             </div>
+            <div class="ana-e-djatht">
+                <Player :currentSong="currentSong" :isGuest="!isUserPlaylistOwner" @currentTime="updateTime" @ended="playNext" v-if="currentSong" :key="currentSong && currentSong.videoId" />
+            </div>
+            <div class="song-postart" :style="imageBackgroundStyle" :class="{ 'default-cover': !currentSong }">
+                <img :src="getDefaultPoster(defaultPoster.filePath)" v-if="!currentSong" alt="default-poster" />
+            </div>
         </div>
-        <div class="ana-e-djatht">
-            <Player :currentSong="currentSong" :isGuest="!isUserPlaylistOwner" @currentTime="updateTime" @ended="playNext()" v-if="currentSong" />
-        </div>
-        <div class="song-postart" :style="imageBackgroundStyle" :class="{ 'default-cover': !currentSong }">
-            <img :src="getDefaultPoster(defaultPoster.filePath)" v-if="!currentSong" alt="default-poster" />
-        </div>
-    </div>
 </template>
 <script>
 import { db, getCurrentUser } from '../firebaseConfig.js';
 //import router from '../router/index';
-
 const ytApiKey = "AIzaSyC4Cun-uRQha90s5ZrggZNgnvokkaIai-g";
 import SongListItem from "@/components/SongListItem.vue";
 import Player from "@/components/Player.vue";
 import Collaborators from "@/components/collaborators.vue";
-
 const defaultBackgrounds = [{
         filePath: "classic.svg",
         backgroundColor: "#F72D5C"
@@ -60,12 +62,11 @@ const defaultBackgrounds = [{
         backgroundColor: "#1754F6"
     }
 ];
-
 export default {
     components: {
         SongListItem,
         Player,
-        Collaborators
+        Collaborators,
     },
     data: () => ({
         appIsReady: false,
@@ -75,6 +76,7 @@ export default {
         playlist: null,
         isUserPlaylistOwner: null,
         shouldYield: false,
+        showAdminButtons: false,
     }),
     mounted() {
         getCurrentUser().then(async res => {
@@ -98,13 +100,11 @@ export default {
                 }
             }
             await this.$bind('playlist', db.collection('playlists').doc(playlistIdQuery));
-
-            if (!this.currentSong && this.upcomingSongs) this.playNext()
+            if (!this.currentSong && this.upcomingSongs) this.playNext(null)
         });
         this.$nextTick().then(res => {
             const pxFromTop = this.$refs.songsListRef.getBoundingClientRect()
                 .top;
-
             const newSongStyle = window.getComputedStyle(this.$refs.newSongRef);
             const newSongHeight = [
                     "height",
@@ -115,11 +115,10 @@ export default {
                 ]
                 .map(key => parseInt(newSongStyle.getPropertyValue(key), 10))
                 .reduce((prev, cur) => prev + cur);
-
             const fromHouse = 10;
             this.maxListHeightStyle = `calc(100vh - ${newSongHeight +
-				pxFromTop +
-				10}px)`;
+                pxFromTop +
+                10}px)`;
         });
     },
     computed: {
@@ -161,20 +160,47 @@ export default {
                 thumbnail: s.thumbnails.default,
                 title: s.title,
                 channelTitle: s.channelTitle,
+                videoId: s.videoId,
                 addedBy: s.addedBy,
+                votes: s.votes
             })) : [];
         },
         playlistFbRef() {
             return this.userData && db.collection('playlists').doc(this.userData.data.playlistId)
-        },
+        }
     },
     methods: {
         updateTime(str) {
-        	if(!str) return
+            if (!str) return
             this.updateCurrentSong({
                 ...this.currentSong,
                 currentTime: str
             })
+        },
+        updateVotes(num) {
+            if (!num) return
+            let newValue = num[0]
+            let votedSongIndex = this.upcomingSongs.findIndex(x => x.videoId === num[1]);
+            let newArray = [...this.upcomingSongs]
+            newArray[votedSongIndex] = { ...newArray[votedSongIndex], votes: newValue }
+            let refinedArr = this.checkNumOfVotes(newArray, votedSongIndex, newValue)
+            this.updateUpcomingSongs(refinedArr)
+        },
+        checkNumOfVotes(newarr, index, newVote) {
+            let numOfPeople = this.collaborators.length
+            let numOfVotes = newVote
+            if (numOfVotes === (0 - numOfPeople)) {
+                newarr.splice(index, 1)
+            }
+            return newarr
+        },
+        historyToPlayNext() {
+            this.finishedSongs.forEach((el, index, array)=>{
+                el.currentTime=0
+                array = this.upcomingSongs
+                array.push(el)
+                this.updateUpcomingSongs(array)
+            });
         },
         setPath(id) {
             this.$router.push({ query: { playlist: id } }).catch(err => { console.log(err) });
@@ -185,6 +211,7 @@ export default {
         getYoutubeLink(link) {
             let videoId = link.split("=")[1];
             let addedBy = this.userData.id;
+            let votes = null
             return this.$http
                 .get(
                     "https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" +
@@ -207,6 +234,7 @@ export default {
                         thumbnails,
                         videoId,
                         addedBy,
+                        votes
                     };
                     return songData
                 })
@@ -221,18 +249,29 @@ export default {
                 return;
             }
             const newUpcomingValue = [...this.upcomingSongs, youtubeSongData]
-            this.updateUpcomingSongs(newUpcomingValue);
+            let addedLast = this.upcomingSongs[this.upcomingSongs.length - 1]
+            let addingNow = youtubeSongData
+            if (!this.isUserPlaylistOwner && this.upcomingSongs.length !== 0 && addedLast.addedBy === addingNow.addedBy) {
+                this.shouldYield = true
+                setTimeout(() => { this.shouldYield = false }, 2500);
+            } else {
+                this.updateUpcomingSongs(newUpcomingValue);
+            }
         },
-        playNext() {
+        playNext(finishedSong) {
             let newUpcomingValue = this.upcomingSongs.slice(0)
             const toBePlayed = newUpcomingValue[0]
             if (!toBePlayed) {
                 this.updateCurrentSong(null)
+                return;
             };
             this.updateCurrentSong(toBePlayed)
-            const finishedSong = newUpcomingValue.splice(0, 1)
+            newUpcomingValue.splice(0, 1)
+            if (finishedSong) {
+                this.updateHistory([...this.finishedSongs, finishedSong])
+                this.updateUpcomingSongs(newUpcomingValue)
+            }
             this.updateUpcomingSongs(newUpcomingValue)
-            this.updateHistory([...this.finishedSongs, finishedSong])
         },
         updateCurrentSong(newSongData) {
             this.playlistFbRef.update({
@@ -245,14 +284,29 @@ export default {
             })
         },
         updateUpcomingSongs(newValue) {
-            this.playlistFbRef.update({
-                upcomingSongs: newValue
-            })
+            let playlistIdQuery = this.$route.query.playlist;
+            if (!this.isUserPlaylistOwner) {
+                db.collection('playlists').doc(playlistIdQuery).update({
+                    upcomingSongs: newValue
+                })
+            } else {
+                this.playlistFbRef.update({
+                    upcomingSongs: newValue
+                })
+            }
+
         },
         updateHistory(newValue) {
-            this.playlistFbRef.update({
-                finishedSongs: newValue
-            })
+            let playlistIdQuery = this.$route.query.playlist;
+            if (!this.isUserPlaylistOwner) {
+                db.collection('playlists').doc(playlistIdQuery).update({
+                    finishedSongs: newValue
+                })
+            } else {
+                this.playlistFbRef.update({
+                    finishedSongs: newValue
+                })
+            }
         },
     },
 };
