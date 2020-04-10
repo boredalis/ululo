@@ -35,7 +35,7 @@
                 </div>
             </div>
             <div class="ana-e-djatht">
-                <Player :currentSong="currentSong" :isGuest="!isUserPlaylistOwner" @currentTime="updateTime" @ended="playNext" v-if="currentSong" :key="currentSong && currentSong.videoId" />
+                <Player :currentSong="currentSong" :isGuest="!isUserPlaylistOwner" @currentTime="updateTime" @ended="playNext" @paused="songPaused" v-if="currentSong" :key="currentSong && currentSong.videoId" />
             </div>
             <div class="song-postart" :style="imageBackgroundStyle" :class="{ 'default-cover': !currentSong }">
                 <img :src="getDefaultPoster(defaultPoster.filePath)" v-if="!currentSong" alt="default-poster" />
@@ -162,7 +162,8 @@ export default {
                 channelTitle: s.channelTitle,
                 videoId: s.videoId,
                 addedBy: s.addedBy,
-                votes: s.votes
+                votes: s.votes,
+                isPaused: s.isPaused
             })) : [];
         },
         playlistFbRef() {
@@ -202,6 +203,13 @@ export default {
                 this.updateUpcomingSongs(array)
             });
         },
+        songPaused(songState){
+            console.log("songState:",songState)
+            this.updateCurrentSong({
+                ...this.currentSong,
+                isPaused: songState
+            })
+        },
         setPath(id) {
             this.$router.push({ query: { playlist: id } }).catch(err => { console.log(err) });
         },
@@ -211,7 +219,8 @@ export default {
         getYoutubeLink(link) {
             let videoId = link.split("=")[1];
             let addedBy = this.userData.id;
-            let votes = null
+            let votes = null;
+            let isPaused = null;
             return this.$http
                 .get(
                     "https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" +
@@ -234,7 +243,8 @@ export default {
                         thumbnails,
                         videoId,
                         addedBy,
-                        votes
+                        votes,
+                        isPaused
                     };
                     return songData
                 })

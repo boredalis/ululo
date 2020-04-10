@@ -66,7 +66,13 @@ export default {
             const difference = remoteTime - localTime
             console.log({ difference })
             this.playVideo()
-            if (difference < 0 || difference >=8) this.syncLocalTime()
+            if (difference < 0 || difference >= 8) {
+                this.syncLocalTime()
+                if (this.isPaused) {
+                    this.pauseVideo()
+                }
+            }
+
         }
         const emitLocalTime = () => {
             this.localCurrentTime = Math.round(this.plyrRef.currentTime)
@@ -90,19 +96,17 @@ export default {
     },
     data: () => ({
         muteAudio: false,
-        isPaused: false,
+        songIsPaused: false,
         plrInitialized: false,
         localDuration: null,
         localCurrentTime: null,
     }),
-    watch: {
-        videoId() {
-            //this.plyrRef = this.$refs.plyr.player;
-        }
-    },
     computed: {
         videoId() {
             return this.currentSong.videoId
+        },
+        isPaused() {
+            return this.currentSong.isPaused
         },
         remoteCurrentTime() {
             return this.currentSong.currentTime
@@ -119,12 +123,14 @@ export default {
     },
     methods: {
         playVideo() {
-            console.log('Play video')
-            this.isPaused = false;
+            this.songIsPaused = false
+            console.log("clicked Play button:", this.songIsPaused)
+            this.$emit("paused", this.songIsPaused)
             this.plyrRef.play();
         },
         pauseVideo() {
-            this.isPaused = true;
+            this.songIsPaused = true;
+            this.$emit("paused", this.songIsPaused)
             this.plyrRef.pause();
         },
         enableVolume() {
@@ -144,7 +150,7 @@ export default {
                 let song = this.currentSong
                 player.on("ready", event => {
                     this.plrInitialized = true;
-                    this.isPaused = false;
+                    this.$emit("paused", this.songIsPaused)
                     this.localDuration = this.plyrRef.duration;
                     resolve()
                 });
