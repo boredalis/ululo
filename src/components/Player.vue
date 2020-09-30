@@ -5,18 +5,16 @@
             <img :src="background.url" alt="" />
         </div>
         <vue-plyr v-show="false" ref="plyr" :key="currentSong.videoId">
-            <div>
-                <iframe :src="
-                        'https://www.youtube.com/embed/' +
-                            currentSong.videoId +
-                            '?iv_load_policy=3&modestbranding=1&playsinline=1&showinfo=0&rel=0&enablejsapi=1'
-                    " allowfullscreen allowtransparency allow="autoplay">
+            <div ref="myFrame">
+                <iframe :src="'https://www.youtube.com/embed/'+ currentSong.videoId + '?&modestbranding=1&playsinline=1&enablejsapi=1&autopause=0&autoplay=1'" allowfullscreen allowtransparency allow="autoplay" >
                 </iframe>
             </div>
         </vue-plyr>
         <div class="progress"></div>
         <div class="play-buttons">
-            <HeartIcon />
+            <HeartIcon class="heart-icon" @click="likeSong()" />
+            <HeartIcon class="heart-icon is-clicked-1" />
+            <HeartIcon class="heart-icon is-clicked-2" />
             <PauseIcon ref="pause" class="play" @click="pauseVideo()" v-if="!isPaused" />
             <PlayIcon ref="play" class="play" @click="playVideo()" v-else />
             <VolumeXIcon class="volume" @click="enableVolume()" v-if="muteAudio" />
@@ -56,6 +54,7 @@ export default {
         this.plrInitialized = false;
     },
     mounted() {
+        console.log(this.$refs.myFrame)
         clearInterval(emitTimeInterval);
         clearInterval(checkTimeInterval);
         const pollingInterval = 10000;
@@ -64,12 +63,12 @@ export default {
             const remoteTime = this.remoteCurrentTime
             const localTime = this.plyrRef.currentTime
             const difference = remoteTime - localTime
-            console.log({ difference })
-            this.playVideo()
-            if (difference < 0 || difference >= 8) {
-                this.syncLocalTime()
-                if (this.isPaused) {
-                    this.pauseVideo()
+            if (this.isPaused) {
+                this.pauseVideo()
+            } else {
+                this.playVideo()
+                if (difference < 0 || difference >= 8) {
+                    this.syncLocalTime()
                 }
             }
 
@@ -85,7 +84,6 @@ export default {
         }).then(res => {
             if (this.isGuest) return Promise.resolve()
             const hostNeedsSync = !!this.remoteCurrentTime && !this.plyrRef.currentTime;
-            console.log('Needs sync', hostNeedsSync)
             if (hostNeedsSync) checkLocalTime()
             emitTimeInterval = setInterval(emitLocalTime, pollingInterval);
         }).then(() => {
@@ -124,7 +122,6 @@ export default {
     methods: {
         playVideo() {
             this.songIsPaused = false
-            console.log("clicked Play button:", this.songIsPaused)
             this.$emit("paused", this.songIsPaused)
             this.plyrRef.play();
         },
@@ -143,6 +140,9 @@ export default {
         },
         syncLocalTime() {
             this.plyrRef.currentTime = this.remoteCurrentTime
+        },
+        likeSong() {
+            this.$emit('likedSong', this.currentSong)
         },
         initializePlyr() {
             return new Promise((resolve, reject) => {
@@ -200,12 +200,12 @@ export default {
     display: flex;
     align-items: center;
     padding: 10px;
-
     background-color: rgba(black, 0.8);
     border-radius: 10px;
     backdrop-filter: blur(10px);
 
     svg {
+        cursor: pointer;
         width: 25px;
         height: 25px;
         fill: white;
@@ -215,6 +215,82 @@ export default {
         &.play {
             width: 45px;
             height: 45px;
+        }
+    }
+
+    .heart-icon {
+        transition: .2s ease-in-out;
+
+        &.is-clicked-1 {
+            opacity: 0;
+            position: absolute;
+            left: -8px;
+            height: 18px;
+            top: 14px;
+            fill: darkred;
+            stroke: darkred;
+
+        }
+
+        &.is-clicked-2 {
+            opacity: 0;
+            position: absolute;
+            left: -12px;
+            height: 14px;
+            top: 10px;
+            fill: darkred;
+            stroke: darkred;
+        }
+
+        &:hover {
+            fill: red;
+            stroke: red;
+        }
+
+        &:active {
+            transform: scale(0.9);
+            fill: darkred;
+            stroke: darkred;
+
+            ~.heart-icon.is-clicked-1 {
+                animation: make-transition-1 .8s ease-in-out;
+            }
+
+            ~.heart-icon.is-clicked-2 {
+                animation: make-transition-2 .8s ease-in-out;
+            }
+        }
+
+        @keyframes make-transition-1 {
+            0% {
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(0.8) translate(-.6em, -.5em);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(0) translate(-.6em, -.5em);
+            }
+        }
+
+        @keyframes make-transition-2 {
+            0% {
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(0.8) translate(-1.7em, -1em);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(0) translate(-1.7em, -1em);
+            }
         }
     }
 }

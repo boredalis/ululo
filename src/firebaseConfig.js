@@ -57,6 +57,7 @@ const checkUserExistence = async (accountId) => {
             currentSong: null,
             upcomingSongs: [],
             finishedSongs: [],
+            likedSongs: [],
             collaborators: [],
         }).then(r => r.get()).then(res => res.id)
 

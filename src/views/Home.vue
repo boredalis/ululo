@@ -1,12 +1,12 @@
 <template>
     <div class="partywithus">
-        <div class="admin-buttons" style="position: fixed; top: 10px; right: 10px; background-color: green; color: white; padding: 10px; z-index: 20;" v-if="showAdminButtons">
-            <button @click="playNext(currentSong)">next</button>
+        <div class="admin-buttons" style="position: fixed; top: 10px; right: 10px;z-index: 20;">
+            <button v-if="currentSong" @click="playNext(currentSong)">Next</button>
         </div>
         <div class="ana-e-majt">
             <div class="upnext">
                 <div>
-                    <p @dblclick="showAdminButtons = true">COLLABORATORS</p>
+                    <p>COLLABORATORS</p>
                     <div class="collabs">
                         <Collaborators v-for="collaborator in collaborators" :collaborator="collaborator">
                         </Collaborators>
@@ -15,32 +15,42 @@
                 <div>
                     <h1>Up next</h1>
                     <p class="popup" v-if="shouldYield">One collaborator per time!</p>
-                    <ul class="songs-list" :style="
-                        `max-height:${maxListHeightStyle}; overflow-y: auto;`
-                    " ref="songsListRef">
-                        <SongListItem @voted="updateVotes" v-for="song in upcomingSongsData" :songProperties="song"  :key="song.id"/>
-                        <span v-if="!upcomingSongsData.length">Looks empty in here... </span>
-                        <span style="text-decoration: underline;cursor: pointer" v-if="!upcomingSongsData.length && finishedSongs.length" @click="historyToPlayNext()">Add already played songs?</span>
+                    <span v-if="!upcomingSongsData">Looks empty in here... </span>
+                    <span class="songs-list" v-if="!upcomingSongs.length && finishedSongs" @click="historyToPlayNext()">Add already played songs?</span>
+                    <span class="songs-list" v-if="!upcomingSongs.length && likedSongs" @click="likedSongsToPlayNext()">
+                        Or your liked songs?
+                    </span>
+                    <ul :style="`max-height:${maxListHeightStyle}; overflow-y: auto;`" ref="songsListRef" name="flip-list" tag="ul">
+                        <SongListItem id="songsListId" @shouldVote="shouldRemoveSong" v-for="song in upcomingSongsData" :songProperties="song" v-bind:key="song.id" />
                     </ul>
                 </div>
             </div>
             <div class=" add-new-song" ref="newSongRef">
-                            <p>
-                                Its your time to shine, add the next song  to our playlist:
-                            </p>
-                            <div class="paste-link-input">
-                                <input type="text" v-model="youtubeLink" placeholder="https://youtube.com/urh34/" />
-                                <button :disabled="!appIsReady" @click="addSong()">Add</button>
-                            </div>
+                <p>
+                    Its your time to shine, add the next song  to our playlist:
+                </p>
+                <div class="paste-link-input">
+                    <input type="text" v-model="youtubeLink" placeholder="https://youtube.com/urh34/" />
+                    <button :disabled="!appIsReady" @click="addSong()">Add</button>
                 </div>
             </div>
-            <div class="ana-e-djatht">
-                <Player :currentSong="currentSong" :isGuest="!isUserPlaylistOwner" @currentTime="updateTime" @ended="playNext" @paused="songPaused" v-if="currentSong" :key="currentSong && currentSong.videoId" />
-            </div>
-            <div class="song-postart" :style="imageBackgroundStyle" :class="{ 'default-cover': !currentSong }">
-                <img :src="getDefaultPoster(defaultPoster.filePath)" v-if="!currentSong" alt="default-poster" />
+        </div>
+        <div class="ana-e-djatht">
+            <Player :currentSong="currentSong" :isGuest="!isUserPlaylistOwner" @currentTime="updateTime" @ended="playNext" @likedSong="updateLikedSongs" @paused="songPaused" v-if="currentSong" :key="currentSong && currentSong.videoId" />
+        </div>
+        <div class="song-postart" :style="imageBackgroundStyle" :class="{ 'default-cover': !currentSong }">
+            <img :src="getDefaultPoster(defaultPoster.filePath)" v-if="!currentSong" alt="default-poster" />
+        </div>
+        <div class="showSongPopup" v-if="showPopUp">
+            <div>
+                <p>Do you want to <b>remove</b> the song from the playlist?</p>
+                <div>
+                    <button @click="removeSong" class="buttons">YES</button>
+                    <button @click="showPopUp=false" class="buttons">NO</button>
+                </div>
             </div>
         </div>
+    </div>
 </template>
 <script>
 import { db, getCurrentUser } from '../firebaseConfig.js';
@@ -69,6 +79,7 @@ export default {
         Collaborators,
     },
     data: () => ({
+        showPopUp: false,
         appIsReady: false,
         youtubeLink: "https://www.youtube.com/watch?v=FUXX55WqYZs",
         maxListHeightStyle: null,
@@ -76,8 +87,9 @@ export default {
         playlist: null,
         isUserPlaylistOwner: null,
         shouldYield: false,
-        showAdminButtons: false,
+        videoIdToVoteOut: null,
     }),
+
     mounted() {
         getCurrentUser().then(async res => {
             // set basic user data
@@ -103,6 +115,7 @@ export default {
             if (!this.currentSong && this.upcomingSongs) this.playNext(null)
         });
         this.$nextTick().then(res => {
+            if(!this.$refs.songsListRef) return;
             const pxFromTop = this.$refs.songsListRef.getBoundingClientRect()
                 .top;
             const newSongStyle = window.getComputedStyle(this.$refs.newSongRef);
@@ -119,6 +132,8 @@ export default {
             this.maxListHeightStyle = `calc(100vh - ${newSongHeight +
                 pxFromTop +
                 10}px)`;
+
+
         });
     },
     computed: {
@@ -130,6 +145,9 @@ export default {
         },
         finishedSongs() {
             return this.playlist ? this.playlist.finishedSongs : null
+        },
+        likedSongs() {
+            return this.playlist ? this.playlist.likedSongs : []
         },
         collaborators() {
             return this.playlist ? this.playlist.collaborators : []
@@ -162,7 +180,6 @@ export default {
                 channelTitle: s.channelTitle,
                 videoId: s.videoId,
                 addedBy: s.addedBy,
-                votes: s.votes,
                 isPaused: s.isPaused
             })) : [];
         },
@@ -171,6 +188,21 @@ export default {
         }
     },
     methods: {
+        shouldRemoveSong(val) {
+            this.showPopUp = !this.showPopUp;
+            this.videoIdToVoteOut = val;
+        },
+        removeSong() {
+            this.showPopUp = false;
+            let value = this.videoIdToVoteOut
+            if (!value) return
+            let votes = 0
+            let votedSongIndex = this.upcomingSongs.findIndex(x => x.videoId === value);
+            let newArray = [...this.upcomingSongs]
+            newArray[votedSongIndex] = { ...newArray[votedSongIndex] }
+            let refinedArr = this.checkNumOfVotes(newArray, votedSongIndex, votes)
+            this.updateUpcomingSongs(refinedArr)
+        },
         updateTime(str) {
             if (!str) return
             this.updateCurrentSong({
@@ -178,33 +210,38 @@ export default {
                 currentTime: str
             })
         },
-        updateVotes(num) {
-            if (!num) return
-            let newValue = num[0]
-            let votedSongIndex = this.upcomingSongs.findIndex(x => x.videoId === num[1]);
-            let newArray = [...this.upcomingSongs]
-            newArray[votedSongIndex] = { ...newArray[votedSongIndex], votes: newValue }
-            let refinedArr = this.checkNumOfVotes(newArray, votedSongIndex, newValue)
-            this.updateUpcomingSongs(refinedArr)
-        },
+
         checkNumOfVotes(newarr, index, newVote) {
             let numOfPeople = this.collaborators.length
             let numOfVotes = newVote
-            if (numOfVotes === (0 - numOfPeople)) {
-                newarr.splice(index, 1)
-            }
+            //if (numOfVotes === (0 - numOfPeople)) {
+            newarr.splice(index, 1)
+            //}
             return newarr
         },
         historyToPlayNext() {
-            this.finishedSongs.forEach((el, index, array)=>{
-                el.currentTime=0
+            this.finishedSongs.forEach((el, index, array) => {
+                el.currentTime = 0
                 array = this.upcomingSongs
                 array.push(el)
                 this.updateUpcomingSongs(array)
             });
+            if (!this.currentSong) {
+                this.playNext()
+            }
         },
-        songPaused(songState){
-            console.log("songState:",songState)
+        likedSongsToPlayNext() {
+            this.likedSongs.forEach((el, index, array) => {
+                el.currentTime = 0
+                array = this.upcomingSongs
+                array.push(el)
+                this.updateUpcomingSongs(array)
+            })
+            if (!this.currentSong) {
+                this.playNext()
+            }
+        },
+        songPaused(songState) {
             this.updateCurrentSong({
                 ...this.currentSong,
                 isPaused: songState
@@ -219,7 +256,6 @@ export default {
         getYoutubeLink(link) {
             let videoId = link.split("=")[1];
             let addedBy = this.userData.id;
-            let votes = null;
             let isPaused = null;
             return this.$http
                 .get(
@@ -243,7 +279,6 @@ export default {
                         thumbnails,
                         videoId,
                         addedBy,
-                        votes,
                         isPaused
                     };
                     return songData
@@ -261,7 +296,7 @@ export default {
             const newUpcomingValue = [...this.upcomingSongs, youtubeSongData]
             let addedLast = this.upcomingSongs[this.upcomingSongs.length - 1]
             let addingNow = youtubeSongData
-            if (!this.isUserPlaylistOwner && this.upcomingSongs.length !== 0 && addedLast.addedBy === addingNow.addedBy) {
+            if (this.upcomingSongs.length !== 0 && addedLast.addedBy === addingNow.addedBy && this.collaborators.length > 0) {
                 this.shouldYield = true
                 setTimeout(() => { this.shouldYield = false }, 2500);
             } else {
@@ -284,9 +319,16 @@ export default {
             this.updateUpcomingSongs(newUpcomingValue)
         },
         updateCurrentSong(newSongData) {
-            this.playlistFbRef.update({
-                currentSong: newSongData
-            })
+            let playlistIdQuery = this.$route.query.playlist;
+            if (!this.isUserPlaylistOwner) {
+                db.collection('playlists').doc(playlistIdQuery).update({
+                    currentSong: newSongData
+                })
+            } else {
+                this.playlistFbRef.update({
+                    currentSong: newSongData
+                })
+            }
         },
         updateCollaborators(newValue, playlistId) {
             db.collection('playlists').doc(playlistId).update({
@@ -305,6 +347,14 @@ export default {
                 })
             }
 
+        },
+        updateLikedSongs(newValue) {
+            let exists = this.likedSongs.find(e => e.videoId == newValue.videoId)
+            if (exists) return;
+            const newLikedSong = [...this.likedSongs, newValue]
+            this.playlistFbRef.update({
+                likedSongs: newLikedSong
+            })
         },
         updateHistory(newValue) {
             let playlistIdQuery = this.$route.query.playlist;
@@ -331,6 +381,7 @@ $baseShadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
 }
 
 .partywithus {
+    position: relative;
     display: flex;
     height: 100%;
     width: 100%;
@@ -383,6 +434,10 @@ $baseShadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
             margin-bottom: 20px;
         }
 
+        .upnext {
+            overflow-y: scroll;
+        }
+
         .collabs {
             display: flex;
 
@@ -396,12 +451,122 @@ $baseShadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
             border-radius: 2px;
             padding: 2px 10px;
         }
+
+        .songs-list {
+            display: block;
+            cursor: pointer;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+
+        .slide-fade-enter-active {
+            transition: all .3s ease;
+        }
+
+        .slide-fade-leave-active {
+            transition: all .3s cubic-bezier(1.0, 0.5, 0.8, 1.0);
+        }
+
+        .slide-fade-enter,
+        .slide-fade-leave-to
+
+        /* .slide-fade-leave-active below version 2.1.8 */
+            {
+            transform: translateX(10px);
+            opacity: 0;
+        }
     }
 
     .ana-e-djatht {
         position: relative;
         z-index: 1;
         flex: 2;
+    }
+
+    .showSongPopup {
+        position: absolute;
+        height: 100%;
+        width: 100%;
+        z-index: 1;
+        background-color: #000000cf;
+
+        >div {
+            margin: auto;
+            margin-top: 50px;
+            background-color: #ffffffeb;
+            height: max-content;
+            width: max-content;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            align-items: center;
+            border-radius: 5px;
+            animation: scale-up-center 0.4s cubic-bezier(0.390, 0.575, 0.565, 1.000) both;
+
+            >p {
+                margin-top: 0;
+                font-size: 18px;
+                margin-bottom: 20px;
+            }
+
+            .buttons {
+                cursor: pointer;
+                margin: 0 10px;
+                border: none;
+                padding: 5px 20px;
+                border-radius: 3px;
+                outline: none;
+                background: red;
+                color: white;
+                font-size: 14px;
+
+                &:hover {
+                    box-shadow: 0 0 3px 0 red;
+                }
+
+                &:active {
+                    background: darkred;
+                    transform: scale(0.9);
+                }
+
+                &:last-child {
+                    background: white;
+                    color: black;
+                    font-weight: 500;
+
+                    &:hover {
+                        box-shadow: 0 0 3px 0 lightgray;
+                    }
+
+                    &:active {
+                        background: gray;
+                        transform: scale(0.9);
+                    }
+                }
+
+
+            }
+
+        }
+
+    }
+
+    .admin-buttons>button {
+        padding: 5px 10px;
+        border-radius: 5px;
+        background: #00000063;
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+        outline: none;
+        border: none;
+
+        &:active {
+            transform: scale(0.97);
+            color: lightgray !important;
+        }
     }
 }
 
@@ -429,6 +594,7 @@ $baseShadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
         }
 
         button {
+            cursor: pointer;
             border: none;
             border-radius: 5px;
             padding: 4px 10px;
@@ -440,6 +606,16 @@ $baseShadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
             font-weight: 500;
             font-size: 16px;
         }
+    }
+}
+
+@keyframes scale-up-center {
+    0% {
+        transform: scale(0.5);
+    }
+
+    100% {
+        transform: scale(1);
     }
 }
 </style>

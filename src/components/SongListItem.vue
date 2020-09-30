@@ -1,19 +1,17 @@
 <template>
     <li>
         <div class="song">
-            <div class="rectangle-cover" :style="
+            <div>
+                <div class="rectangle-cover" :style="
                     `background-image: url(${songProperties.thumbnail.url})`
                 "></div>
-            <div class="song-info">
-                <p>{{ songProperties.title }}</p>
-                <span>Added by {{ songProperties.addedBy || "you" }}</span>
+                <div class="song-info">
+                    <p>{{ songProperties.title }}</p>
+                    <span>Added by {{ songProperties.addedBy || "you" }}</span>
+                </div>
             </div>
             <div class="vote">
-                <div v-if="isVoted" :style="styleObject">{{votes}}</div>
-                <div v-else>
-                    <ThumbsUpIcon @click="vote('upvote')" size="20" stroke-width="1" stroke="black" fill="#57ca57"></ThumbsUpIcon>
-                    <ThumbsDownIcon @click="vote('downvote')" size="20" stroke-width="1" stroke="black" fill="#ff4444"></ThumbsDownIcon>
-                </div>
+                <MoreVerticalIcon @click="wantToRemoveSong"></MoreVerticalIcon>
             </div>
         </div>
     </li>
@@ -21,53 +19,25 @@
 <script>
 import {
     ThumbsUpIcon,
-    ThumbsDownIcon
+    ThumbsDownIcon,
+    MoreVerticalIcon
 } from "vue-feather-icons";
 export default {
     props: ["songProperties"],
     components: {
         ThumbsUpIcon,
-        ThumbsDownIcon
-    },
-    watch: {
-        songProperties(val) {
-            if (val.votes === null) this.isVoted = false
-        }
-    },
-    computed: {
-        votes() {
-            return this.songProperties ? this.songProperties && this.songProperties.votes : null
-        },
+        ThumbsDownIcon,
+        MoreVerticalIcon
     },
     data: () => ({
-        isVoted: false,
         styleObject: {
             color: '',
             fontSize: '13px'
         }
     }),
     methods: {
-        vote(payload) {
-            let votes
-            if (this.votes) {
-                votes = this.votes
-            } else {
-                votes = 0
-            }
-            if (payload === 'upvote') {
-                votes += 1
-                this.$emit("voted", [votes, this.songProperties.videoId]);
-            } else if (payload === 'downvote') {
-                votes -= 1
-                this.$emit("voted", [votes, this.songProperties.videoId]);
-            }
-
-            if (votes >= 0) {
-                this.styleObject.color = "orange"
-            } else {
-                this.styleObject.color = "blue"
-            }
-            this.isVoted = true
+        wantToRemoveSong() {
+            this.$emit("shouldVote", this.songProperties.videoId);
         },
     },
 };
@@ -89,26 +59,15 @@ export default {
     align-items: center;
     margin-top: 10px;
     justify-content: space-between;
+    >div{
+        display: inherit;
+        align-items: center;
+        max-width:90%;
+    }
 }
 
 .vote {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-left: 10px;
-
-    >div:first-child {
-        text-align: center;
-    }
-
-    >div:last-child {
-        cursor: pointer;
-
-        >svg:first-child {
-            margin-bottom: 5px;
-
-        }
-    }
+    cursor: pointer;
 }
 
 .song-info {
