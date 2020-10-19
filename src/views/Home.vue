@@ -8,7 +8,7 @@
                 <div>
                     <p>COLLABORATORS</p>
                     <div class="collabs">
-                        <Collaborators v-for="collaborator in collaborators" :collaborator="collaborator">
+                        <Collaborators v-for="collaborator in collaborators" :key="collaborator" :collaborator="collaborator">
                         </Collaborators>
                     </div>
                 </div>
@@ -16,8 +16,8 @@
                     <h1>Up next</h1>
                     <p class="popup" v-if="shouldYield">One collaborator per time!</p>
                     <span v-if="!upcomingSongsData">Looks empty in here... </span>
-                    <span class="songs-list" v-if="!upcomingSongs.length && finishedSongs" @click="historyToPlayNext()">Add already played songs?</span>
-                    <span class="songs-list" v-if="!upcomingSongs.length && likedSongs" @click="likedSongsToPlayNext()">
+                    <span class="songs-list" v-if="!upcomingSongs.length && finishedSongs.length" @click="historyToPlayNext()">Add already played songs?</span>
+                    <span class="songs-list" v-if="!upcomingSongs.length && likedSongs.length" @click="likedSongsToPlayNext()">
                         Or your liked songs?
                     </span>
                     <ul :style="`max-height:${maxListHeightStyle}; overflow-y: auto;`" ref="songsListRef" name="flip-list" tag="ul">
@@ -53,6 +53,8 @@
     </div>
 </template>
 <script>
+import firebase from 'firebase'
+import 'firebase/firestore'
 import { db, getCurrentUser } from '../firebaseConfig.js';
 //import router from '../router/index';
 const ytApiKey = "AIzaSyC4Cun-uRQha90s5ZrggZNgnvokkaIai-g";
@@ -88,6 +90,7 @@ export default {
         isUserPlaylistOwner: null,
         shouldYield: false,
         videoIdToVoteOut: null,
+        noMoreCollabs: false,
     }),
 
     mounted() {
@@ -105,17 +108,26 @@ export default {
                 this.setPath(playlistIdQuery)
             }
             this.isUserPlaylistOwner = playlistIdQuery === userPlaylistId;
+
+            await this.$bind('playlist', db.collection('playlists').doc(playlistIdQuery));
+
+            let collaboratorExists;
+
             if (!this.isUserPlaylistOwner) {
-                let collaboratorExists = this.collaborators.includes(this.userData.id);
+                collaboratorExists = this.collaborators.includes(this.userData.id);
                 if (!collaboratorExists) {
-                    this.updateCollaborators([...this.collaborators, this.userData.id], playlistIdQuery);
+                    this.updateCollaborators(this.userData.id, playlistIdQuery);
                 }
             }
-            await this.$bind('playlist', db.collection('playlists').doc(playlistIdQuery));
+            if (this.isUserPlaylistOwner && !collaboratorExists) {
+                this.noMoreCollabs = true;
+                this.updateCollaborators(null, playlistIdQuery);
+            }
+
             if (!this.currentSong && this.upcomingSongs) this.playNext(null)
         });
         this.$nextTick().then(res => {
-            if(!this.$refs.songsListRef) return;
+            if (!this.$refs.songsListRef) return;
             const pxFromTop = this.$refs.songsListRef.getBoundingClientRect()
                 .top;
             const newSongStyle = window.getComputedStyle(this.$refs.newSongRef);
@@ -144,7 +156,7 @@ export default {
             return this.playlist ? this.playlist.currentSong : null
         },
         finishedSongs() {
-            return this.playlist ? this.playlist.finishedSongs : null
+            return this.playlist ? this.playlist.finishedSongs : []
         },
         likedSongs() {
             return this.playlist ? this.playlist.likedSongs : []
@@ -210,7 +222,6 @@ export default {
                 currentTime: str
             })
         },
-
         checkNumOfVotes(newarr, index, newVote) {
             let numOfPeople = this.collaborators.length
             let numOfVotes = newVote
@@ -308,9 +319,7 @@ export default {
             const toBePlayed = newUpcomingValue[0]
             if (!toBePlayed) {
                 this.updateCurrentSong(null)
-                return;
-            };
-            this.updateCurrentSong(toBePlayed)
+            } else { this.updateCurrentSong(toBePlayed) }
             newUpcomingValue.splice(0, 1)
             if (finishedSong) {
                 this.updateHistory([...this.finishedSongs, finishedSong])
@@ -331,9 +340,17 @@ export default {
             }
         },
         updateCollaborators(newValue, playlistId) {
-            db.collection('playlists').doc(playlistId).update({
-                collaborators: newValue
-            })
+            if (this.noMoreCollabs) {
+                db.collection('playlists').doc(playlistId).update({
+                    collaborators: []
+                })
+            } else {
+                let newCollaborators = [...this.collaborators, newValue]
+                db.collection('playlists').doc(playlistId).update({
+                    collaborators: newCollaborators
+                })
+            }
+
         },
         updateUpcomingSongs(newValue) {
             let playlistIdQuery = this.$route.query.playlist;
@@ -357,6 +374,8 @@ export default {
             })
         },
         updateHistory(newValue) {
+            let exists = this.finishedSongs.find(e => e.videoId == newValue.videoId)
+            if (exists) return;
             let playlistIdQuery = this.$route.query.playlist;
             if (!this.isUserPlaylistOwner) {
                 db.collection('playlists').doc(playlistIdQuery).update({

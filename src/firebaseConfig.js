@@ -43,11 +43,14 @@ const checkUserExistence = async (accountId) => {
 
     if (!existingUser) {
         existingUser = await db.collection('users').add({
-            accountId
-        }).then(r => r.get()).then(r => ({
-            id: r.id,
-            data: r.data()
-        }))
+                accountId
+            }).then(r => r.get())
+            .then(r => {
+                return {
+                    id: r.id,
+                    data: r.data()
+                }
+            })
     }
 
     const { playlistId } = existingUser.data
@@ -60,16 +63,17 @@ const checkUserExistence = async (accountId) => {
             likedSongs: [],
             collaborators: [],
         }).then(r => r.get()).then(res => res.id)
-
         existingUser = await db.collection('users').doc(existingUser.id).update({
             playlistId: addedPlaylistId,
             profile: null
-        }).then(r => r.get()).then(r => ({
-            id: r.id,
-            data: r.data()
-        }))
+        }).then(async () => {
+            let res = await db.collection('users').doc(existingUser.id).get().then(doc => ({
+                id: doc.id,
+                data: doc.data()
+            }))
+            return res
+        })
     }
-
     return existingUser
 }
 

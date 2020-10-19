@@ -15,7 +15,7 @@
             <HeartIcon class="heart-icon" @click="likeSong()" />
             <HeartIcon class="heart-icon is-clicked-1" />
             <HeartIcon class="heart-icon is-clicked-2" />
-            <PauseIcon ref="pause" class="play" @click="pauseVideo()" v-if="!isPaused" />
+            <PauseIcon ref="pause" class="play" @click="pauseVideo()" v-if="!songIsPaused" />
             <PlayIcon ref="play" class="play" @click="playVideo()" v-else />
             <VolumeXIcon class="volume" @click="enableVolume()" v-if="muteAudio" />
             <Volume1Icon class="volume" @click="disableVolume()" v-else />
@@ -54,7 +54,7 @@ export default {
         this.plrInitialized = false;
     },
     mounted() {
-        console.log(this.$refs.myFrame)
+        this.songIsPaused = this.isPaused
         clearInterval(emitTimeInterval);
         clearInterval(checkTimeInterval);
         const pollingInterval = 10000;
@@ -64,7 +64,8 @@ export default {
             const localTime = this.plyrRef.currentTime
             const difference = remoteTime - localTime
             if (this.isPaused) {
-                this.pauseVideo()
+                this.songIsPaused = false;
+                //this.pauseVideo()
             } else {
                 this.playVideo()
                 if (difference < 0 || difference >= 8) {
