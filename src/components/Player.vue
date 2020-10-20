@@ -95,7 +95,7 @@ export default {
     },
     data: () => ({
         muteAudio: false,
-        songIsPaused: false,
+        songIsPaused: null,
         plrInitialized: false,
         localDuration: null,
         localCurrentTime: null,
@@ -151,8 +151,8 @@ export default {
                 let song = this.currentSong
                 player.on("ready", event => {
                     this.plrInitialized = true;
-                    this.$emit("paused", this.songIsPaused)
                     this.localDuration = this.plyrRef.duration;
+                    this.$emit("paused", this.songIsPaused)
                     resolve()
                 });
 
