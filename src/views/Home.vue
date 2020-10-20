@@ -16,9 +16,9 @@
                     <h1>Up next</h1>
                     <p class="popup" v-if="shouldYield">One collaborator per time!</p>
                     <span v-if="!upcomingSongsData">Looks empty in here... </span>
-                    <span class="songs-list" v-if="!upcomingSongs.length && finishedSongs.length" @click="historyToPlayNext()">Add already played songs?</span>
+                    <span class="songs-list" v-if="!upcomingSongs.length && finishedSongs.length" @click="historyToPlayNext()">Add already played songs...</span>
                     <span class="songs-list" v-if="!upcomingSongs.length && likedSongs.length" @click="likedSongsToPlayNext()">
-                        Or your liked songs?
+                        Add your liked songs...
                     </span>
                     <ul :style="`max-height:${maxListHeightStyle}; overflow-y: auto;`" ref="songsListRef" name="flip-list" tag="ul">
                         <SongListItem id="songsListId" @shouldVote="shouldRemoveSong" v-for="song in upcomingSongsData" :songProperties="song" v-bind:key="song.id" />
