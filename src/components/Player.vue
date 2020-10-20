@@ -95,7 +95,7 @@ export default {
     },
     data: () => ({
         muteAudio: false,
-        songIsPaused: null,
+        songIsPaused: true,
         plrInitialized: false,
         localDuration: null,
         localCurrentTime: null,
