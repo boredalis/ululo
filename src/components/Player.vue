@@ -64,8 +64,8 @@ export default {
             const localTime = this.plyrRef.currentTime
             const difference = remoteTime - localTime
             if (this.isPaused) {
-                this.songIsPaused = false;
-                //this.pauseVideo()
+                this.songIsPaused = true;
+                this.pauseVideo()
             } else {
                 this.playVideo()
                 if (difference < 0 || difference >= 8) {
